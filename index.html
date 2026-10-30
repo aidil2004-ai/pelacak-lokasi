@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Akses Lokasi</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        flex-direction: column;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #0b0f19;
+        color: #f8fafc;
+        overflow: hidden;
+        position: relative;
+      }
+
+      /* Canvas Background Animasi */
+      #bg-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+      }
+
+      .content-container {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 20px;
+      }
+
+      h2 {
+        margin-bottom: 10px;
+        color: #f1f5f9;
+        font-size: 26px;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+      }
+
+      p {
+        margin-bottom: 35px;
+        color: #94a3b8;
+        max-width: 320px;
+        line-height: 1.5;
+        font-size: 15px;
+      }
+
+      .button-container {
+        position: relative;
+        padding-bottom: 20px;
+      }
+
+      /* Desain Tombol Modern Cyber / Neon Glow */
+      .btn-3d {
+        position: relative;
+        width: 170px;
+        height: 170px;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        color: #ffffff;
+        background: linear-gradient(135deg, #00c6ff, #0072ff);
+        box-shadow:
+          0 10px 25px rgba(0, 114, 255, 0.4),
+          0 0 0 8px rgba(0, 114, 255, 0.15);
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        outline: none;
+      }
+
+      .btn-3d:hover {
+        transform: translateY(-4px) scale(1.03);
+        box-shadow:
+          0 15px 30px rgba(0, 114, 255, 0.6),
+          0 0 0 12px rgba(0, 114, 255, 0.2);
+        background: linear-gradient(135deg, #00d2ff, #0080ff);
+      }
+
+      .btn-3d:active {
+        transform: translateY(2px) scale(0.97);
+        box-shadow:
+          0 5px 15px rgba(0, 114, 255, 0.4),
+          0 0 0 6px rgba(0, 114, 255, 0.25);
+      }
+
+      #status {
+        margin-top: 25px;
+        font-weight: 600;
+        color: #38bdf8;
+        min-height: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Canvas untuk Background Animasi -->
+    <canvas id="bg-canvas"></canvas>
+
+    <div class="content-container">
+      <h2>Bagikan Lokasi Anda</h2>
+      <p>
+        Tekan tombol di bawah untuk memberikan akses lokasi Anda secara
+        langsung.
+      </p>
+
+      <div class="button-container">
+        <button id="btn" class="btn-3d">Kirim Lokasi</button>
+      </div>
+
+      <p id="status"></p>
+    </div>
+
+    <!-- Firebase SDK (v8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+      // --- ANIMASI BACKGROUND CANVAS ---
+      const canvas = document.getElementById("bg-canvas");
+      const ctx = canvas.getContext("2d");
+
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+
+      const particles = [];
+      const particleCount = 45;
+
+      for (let i = 0; i < particleCount; i++) {
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          radius: Math.random() * 2 + 1,
+          vx: (Math.random() - 0.5) * 0.8,
+          vy: (Math.random() - 0.5) * 0.8,
+          alpha: Math.random() * 0.5 + 0.2,
+        });
+      }
+
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Gambar & Update Partikel
+        particles.forEach((p, index) => {
+          p.x += p.vx;
+          p.y += p.vy;
+
+          if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+          if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(56, 189, 248, ${p.alpha})`;
+          ctx.fill();
+
+          // Garis Penghubung antar Partikel
+          for (let j = index + 1; j < particles.length; j++) {
+            const p2 = particles[j];
+            const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+            if (dist < 120) {
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.strokeStyle = `rgba(0, 114, 255, ${0.15 * (1 - dist / 120)})`;
+              ctx.lineWidth = 0.8;
+              ctx.stroke();
+            }
+          }
+        });
+
+        requestAnimationFrame(animate);
+      }
+      animate();
+
+      // --- LOGIK FIREBASE & GEOLOCATION ---
+      const firebaseConfig = {
+        apiKey: "AIzaSyCZa5gNwHXsue-GjIrxPKE8qWmsrC-rgMQ",
+        authDomain: "pelacak-lokasi-9074d.firebaseapp.com",
+        databaseURL:
+          "https://pelacak-lokasi-9074d-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "pelacak-lokasi-9074d",
+        storageBucket: "pelacak-lokasi-9074d.firebasestorage.app",
+        messagingSenderId: "749144288015",
+        appId: "1:749144288015:web:db015175a0d826aa8e2c7a",
+        measurementId: "G-3MEBEKYKEB",
+      };
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.database();
+
+      document.getElementById("btn").addEventListener("click", () => {
+        const status = document.getElementById("status");
+        status.innerText = "Mengambil lokasi...";
+
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const data = {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                time: new Date().toLocaleTimeString("id-ID"),
+              };
+              db.ref("lokasi/target")
+                .set(data)
+                .then(() => {
+                  status.innerText = "Lokasi berhasil dikirim!";
+                })
+                .catch((err) => {
+                  status.innerText = "Gagal simpan ke Firebase: " + err.message;
+                });
+            },
+            (err) => {
+              status.innerText = "Gagal mengambil lokasi: " + err.message;
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+          );
+        } else {
+          status.innerText = "Browser tidak mendukung Geolocation.";
+        }
+      });
+    </script>
+  </body>
+</html>
