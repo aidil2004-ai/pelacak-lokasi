@@ -1,70 +1,266 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pantau Lokasi</title>
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pantau Lokasi - Aesthetic Realtime</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-      #map {
-        height: 80vh;
-        width: 100%;
-      }
-      body {
-        font-family: sans-serif;
-        margin: 0;
-        padding: 10px;
-      }
-    </style>
-  </head>
-  <body>
-    <h3>Peta Pemantauan Lokasi Realtime</h3>
-    <p id="info">Menunggu data lokasi...</p>
-    <div id="map"></div>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0b0f19;
+            color: #f8fafc;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* Canvas Background Animasi */
+        #bg-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Container Komponen Utama */
+        .app-container {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 20px;
+            gap: 15px;
+        }
+
+        /* Header Kartu Informasi (Glassmorphism) */
+        .info-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 16px;
+            padding: 16px 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .info-card h3 {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-badge {
+            font-size: 14px;
+            font-weight: 600;
+            color: #38bdf8;
+            background: rgba(56, 189, 248, 0.1);
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            letter-spacing: 0.3px;
+        }
+
+        /* Wrapper Peta dengan Glow Border */
+        .map-wrapper {
+            flex: 1;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6),
+                        0 0 20px rgba(0, 114, 255, 0.15);
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #0b0f19;
+        }
+
+        /* Custom Animasi Marker Radar */
+        .radar-marker {
+            position: relative;
+            width: 20px;
+            height: 20px;
+            background: #00d2ff;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 15px #00d2ff;
+        }
+
+        .radar-marker::after {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(0, 210, 255, 0.4);
+            animation: pulse 1.8s infinite ease-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.5); opacity: 1; }
+            100% { transform: scale(2.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Canvas untuk Background Animasi Partikel -->
+    <canvas id="bg-canvas"></canvas>
+
+    <div class="app-container">
+        <!-- Header Info -->
+        <div class="info-card">
+            <h3>📡 Peta Pemantauan Realtime</h3>
+            <div id="info" class="status-badge">Menunggu data lokasi...</div>
+        </div>
+
+        <!-- Wadah Peta -->
+        <div class="map-wrapper">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet & Firebase SDK -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-      const firebaseConfig = {
-        apiKey: "AIzaSyCZa5gNwHXsue-GjIrxPKE8qWmsrC-rgMQ",
-        authDomain: "pelacak-lokasi-9074d.firebaseapp.com",
-        databaseURL:
-          "https://pelacak-lokasi-9074d-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "pelacak-lokasi-9074d",
-        storageBucket: "pelacak-lokasi-9074d.firebasestorage.app",
-        messagingSenderId: "749144288015",
-        appId: "1:749144288015:web:db015175a0d826aa8e2c7a",
-        measurementId: "G-3MEBEKYKEB",
-      };
-      firebase.initializeApp(firebaseConfig);
-      const db = firebase.database();
+        // --- 1. ANIMASI BACKGROUND CANVAS ---
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
 
-      const map = L.map("map").setView([0, 0], 2);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(
-        map,
-      );
-      let marker;
-
-      db.ref("lokasi/target").on("value", (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          const { lat, lng, time } = data;
-          document.getElementById("info").innerText =
-            `Lokasi Terupdate (${time}): Lat ${lat}, Lng ${lng}`;
-
-          if (!marker) {
-            marker = L.marker([lat, lng]).addTo(map);
-          } else {
-            marker.setLatLng([lat, lng]);
-          }
-          map.setView([lat, lng], 16);
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
         }
-      });
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const particles = [];
+        const particleCount = 40;
+
+        for (let i = 0; i < particleCount; i++) {
+            particles.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                radius: Math.random() * 2 + 1,
+                vx: (Math.random() - 0.5) * 0.6,
+                vy: (Math.random() - 0.5) * 0.6,
+                alpha: Math.random() * 0.5 + 0.2
+            });
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            particles.forEach((p, index) => {
+                p.x += p.vx;
+                p.y += p.vy;
+
+                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(56, 189, 248, ${p.alpha})`;
+                ctx.fill();
+
+                for (let j = index + 1; j < particles.length; j++) {
+                    const p2 = particles[j];
+                    const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                    if (dist < 130) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.strokeStyle = `rgba(0, 114, 255, ${0.12 * (1 - dist / 130)})`;
+                        ctx.lineWidth = 0.8;
+                        ctx.stroke();
+                    }
+                }
+            });
+
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+
+        // --- 2. KONFIGURASI LEAFLET MAP (DARK TILE) ---
+        const map = L.map('map', { zoomControl: true }).setView([-2.5489, 118.0149], 5);
+
+        // Tile peta tema Dark Mode (CartoDB Dark Matter)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Custom Icon Marker Radar
+        const radarIcon = L.divIcon({
+            className: 'custom-radar-container',
+            html: '<div class="radar-marker"></div>',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+
+        let marker;
+
+
+        // --- 3. INTEGRASI FIREBASE DATABASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCZa5gNwHXsue-GjIrxPKE8qWmsrC-rgMQ",
+            authDomain: "pelacak-lokasi-9074d.firebaseapp.com",
+            databaseURL: "https://pelacak-lokasi-9074d-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "pelacak-lokasi-9074d",
+            storageBucket: "pelacak-lokasi-9074d.firebasestorage.app",
+            messagingSenderId: "749144288015",
+            appId: "1:749144288015:web:db015175a0d826aa8e2c7a",
+            measurementId: "G-3MEBEKYKEB"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        db.ref('lokasi/target').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const { lat, lng, time } = data;
+                document.getElementById('info').innerText = `Terupdate (${time}): ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                
+                if (!marker) {
+                    marker = L.marker([lat, lng], { icon: radarIcon }).addTo(map);
+                } else {
+                    marker.setLatLng([lat, lng]);
+                }
+                map.setView([lat, lng], 16, { animate: true });
+            }
+        });
     </script>
-  </body>
+</body>
 </html>
