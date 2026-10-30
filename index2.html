@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pantau Lokasi - Realtime 3D Map</title>
-    <!-- Mapbox GL JS CSS -->
-    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+    <title>Pantau Lokasi - Realtime Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * {
             margin: 0;
@@ -24,7 +23,7 @@
             position: relative;
         }
 
-        /* Canvas Background Animasi */
+        /* Canvas Background Partikel */
         #bg-canvas {
             position: absolute;
             top: 0;
@@ -35,7 +34,6 @@
             pointer-events: none;
         }
 
-        /* Container Komponen Utama */
         .app-container {
             position: relative;
             z-index: 1;
@@ -46,7 +44,7 @@
             gap: 15px;
         }
 
-        /* Header Kartu Informasi (Glassmorphism) */
+        /* Header Informasi Transparan */
         .info-card {
             background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(12px);
@@ -54,8 +52,7 @@
             border: 1px solid rgba(56, 189, 248, 0.25);
             border-radius: 16px;
             padding: 16px 24px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -66,12 +63,7 @@
         .info-card h3 {
             font-size: 20px;
             font-weight: 700;
-            background: linear-gradient(135deg, #38bdf8, #818cf8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            color: #38bdf8;
         }
 
         .status-badge {
@@ -82,73 +74,75 @@
             padding: 6px 14px;
             border-radius: 20px;
             border: 1px solid rgba(56, 189, 248, 0.3);
-            letter-spacing: 0.3px;
         }
 
-        /* Wrapper Peta dengan Glow Border */
+        /* Wadah Peta Leaflet */
         .map-wrapper {
             flex: 1;
             border-radius: 20px;
             overflow: hidden;
             border: 1px solid rgba(56, 189, 248, 0.3);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6),
-                        0 0 20px rgba(0, 114, 255, 0.2);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
             position: relative;
         }
 
         #map {
             width: 100%;
             height: 100%;
+            background: #0b0f19;
         }
 
-        /* Custom Animasi Marker Radar 3D */
-        .radar-marker {
+        /* Styling Marker Radar */
+        .radar-container {
             position: relative;
-            width: 22px;
-            height: 22px;
+            width: 24px;
+            height: 24px;
+        }
+
+        .radar-dot {
+            width: 20px;
+            height: 20px;
             background: #00d2ff;
             border: 2px solid #ffffff;
             border-radius: 50%;
-            box-shadow: 0 0 20px #00d2ff;
+            box-shadow: 0 0 15px #00d2ff;
+            position: absolute;
+            top: 2px;
+            left: 2px;
         }
 
-        .radar-marker::after {
-            content: '';
+        .radar-pulse {
             position: absolute;
-            top: -10px;
-            left: -10px;
-            width: 38px;
-            height: 38px;
+            top: -8px;
+            left: -8px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
-            background: rgba(0, 210, 255, 0.5);
+            background: rgba(0, 210, 255, 0.4);
             animation: pulse 1.8s infinite ease-out;
         }
 
         @keyframes pulse {
-            0% { transform: scale(0.5); opacity: 1; }
-            100% { transform: scale(2.3); opacity: 0; }
+            0% { transform: scale(0.4); opacity: 1; }
+            100% { transform: scale(2.2); opacity: 0; }
         }
     </style>
 </head>
 <body>
-    <!-- Canvas untuk Background Animasi Partikel -->
     <canvas id="bg-canvas"></canvas>
 
     <div class="app-container">
-        <!-- Header Info -->
         <div class="info-card">
-            <h3>📡 Peta Pemantauan 3D Realtime</h3>
+            <h3>📡 Peta Pemantauan Realtime</h3>
             <div id="info" class="status-badge">Menunggu data lokasi...</div>
         </div>
 
-        <!-- Wadah Peta -->
         <div class="map-wrapper">
             <div id="map"></div>
         </div>
     </div>
 
-    <!-- Mapbox GL JS & Firebase SDK -->
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -156,18 +150,12 @@
         // --- 1. ANIMASI BACKGROUND CANVAS ---
         const canvas = document.getElementById('bg-canvas');
         const ctx = canvas.getContext('2d');
-
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
         const particles = [];
-        const particleCount = 40;
-
-        for (let i = 0; i < particleCount; i++) {
+        for (let i = 0; i < 40; i++) {
             particles.push({
                 x: Math.random() * canvas.width,
                 y: Math.random() * canvas.height,
@@ -180,11 +168,8 @@
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             particles.forEach((p, index) => {
-                p.x += p.vx;
-                p.y += p.vy;
-
+                p.x += p.vx; p.y += p.vy;
                 if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
                 if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
 
@@ -206,57 +191,32 @@
                     }
                 }
             });
-
             requestAnimationFrame(animate);
         }
         animate();
 
 
-        // --- 2. KONFIGURASI MAPBOX 3D REALTIME ---
-        // Public Access Token Mapbox
-        mapboxgl.accessToken = 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4M29iazA2Z2gycXA4N2pmbDZmangifQ.-g_vE53SD2WrJ6tFX7QHmA';
+        // --- 2. INSIALISASI PETA LEAFLET ---
+        const map = L.map('map').setView([-2.5489, 118.0149], 5);
+        
+        // Peta Detail OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
 
-        const map = new mapboxgl.Map({
-            container: 'map',
-            style: 'mapbox://styles/mapbox/navigation-night-v1', // Style gelap beresolusi tinggi dengan nama jalan detail
-            center: [118.0149, -2.5489],
-            zoom: 4,
-            pitch: 60, // Memiringkan sudut pandang untuk efek 3D
-            bearing: -17.6
+        // Marker Kustom Radar
+        const radarIcon = L.divIcon({
+            className: 'custom-radar-icon',
+            html: '<div class="radar-container"><div class="radar-pulse"></div><div class="radar-dot"></div></div>',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
         });
-
-        // Kontrol Navigasi Zoom & Rotasi
-        map.addControl(mapboxgl.NavigationControl());
-
-        // Menambahkan Layer Bangunan 3D
-        map.on('load', () => {
-            const layers = map.getStyle().layers;
-            const labelLayerId = layers.find(layer => layer.type === 'symbol' && layer.layout['text-field']).id;
-
-            map.addLayer({
-                'id': 'add-3d-buildings',
-                'source': 'composite',
-                'source-layer': 'building',
-                'filter': ['==', 'extrude', 'true'],
-                'type': 'fill-extrusion',
-                'minzoom': 15,
-                'paint': {
-                    'fill-extrusion-color': '#0f172a',
-                    'fill-extrusion-height': ['get', 'height'],
-                    'fill-extrusion-base': ['get', 'min_height'],
-                    'fill-extrusion-opacity': 0.8
-                }
-            }, labelLayerId);
-        });
-
-        // Custom Element Marker Radar
-        const el = document.createElement('div');
-        el.className = 'radar-marker';
 
         let marker;
 
 
-        // --- 3. INTEGRASI FIREBASE DATABASE ---
+        // --- 3. KONEKSI FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyCZa5gNwHXsue-GjIrxPKE8qWmsrC-rgMQ",
             authDomain: "pelacak-lokasi-9074d.firebaseapp.com",
@@ -277,22 +237,11 @@
                 document.getElementById('info').innerText = `Terupdate (${time}): ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
                 
                 if (!marker) {
-                    marker = new mapboxgl.Marker(el)
-                        .setLngLat([lng, lat])
-                        .addTo(map);
+                    marker = L.marker([lat, lng], { icon: radarIcon }).addTo(map);
                 } else {
-                    marker.setLngLat([lng, lat]);
+                    marker.setLatLng([lat, lng]);
                 }
-
-                // Animasi kamera terbang ke titik lokasi (Pitch 60 derajat untuk tampilan 3D)
-                map.flyTo({
-                    center: [lng, lat],
-                    zoom: 17,
-                    pitch: 65,
-                    bearing: 30,
-                    essential: true,
-                    speed: 1.2
-                });
+                map.setView([lat, lng], 17, { animate: true });
             }
         });
     </script>
